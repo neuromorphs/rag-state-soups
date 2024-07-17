@@ -61,7 +61,7 @@ dataset_path = args.dataset_path
 embedding_folder = args.embedding_folder
 results_folder = args.results_folder
 os.makedirs(results_folder, exist_ok=True)
-write_path = os.path.join(results_folder, 'results.json')
+write_path = os.path.join(results_folder, 'results.csv')
 n_examples = args.n_examples
 
 device = "cuda"
@@ -104,7 +104,7 @@ for qa_id in tqdm(range(n_examples)):
   prompt = [{"role": "user", "content": question}]
   query_input_ids = tokenizer.apply_chat_template(prompt, return_tensors="pt", add_generation_prompt=True).to(device)
 
-  for condition in conditions:
+  for condition in tqdm(conditions):
     # forward pass with query to collect hidden state
     query_out = model(input_ids=query_input_ids, max_new_tokens=1, return_dict=True)
     cache_query = query_out.cache_params
