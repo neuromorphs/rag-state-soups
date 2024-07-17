@@ -51,7 +51,7 @@ class Configuration:
       self.layers = [self.layers]
 
   def __str__(self):
-    l = self.layers if isinstance(self.layers, int) else f"N{len(self.layers)}"
+    l = self.layers if isinstance(self.layers, int) or len(self.layers) == 1 else f"N{len(self.layers)}"
     return f"layers_{l}_ssm_{self.ssm_ratio}_conv_{self.conv_ratio}"
 
 
