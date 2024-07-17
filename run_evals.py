@@ -155,7 +155,7 @@ for qa_id in tqdm(range(n_examples)):
       'model_answer': int(choices[0][1]),
       'correct': corect_ans == int(choices[0][1]),
       'answer_rankings': choices,
-      'full_answer': tokenizer.decode(outfull[0]),
+      'full_answer': tokenizer.decode(outfull[0]).split("<|assistant|>")[1].split("<|endoftext|>")[0],
     })
 
     # save the results to a file
