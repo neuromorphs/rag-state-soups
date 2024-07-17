@@ -36,7 +36,9 @@ def soup_fn(context, query, context_lambda=0.9, query_lambda=None):
   return context * context_lambda + query * query_lambda
 
 def format_context(ex):
-  question = f"Answer the following multiple-choice question with ONLY the number (enclosed in #) of the correct item, so #1#, #2#, #3#, or #4# ONLY. Do NOT repeat the question or the answer, provide only the number of the correct answer and nothing else. Provide the correct number enclosed in ## for the answer to this question: {ex['question']}\n" + '\n'.join([f'{i+1}:' + ex[f'answer_{i}'] for i in range(4)])
+  letters = ['A', 'B', 'C', 'D']
+  
+  question = f"Answer to the following multiple-choice question precisely with ONLY the letter of correct response, no other text, only the correct letter.\n[{ex['question']}\n" + '\n'.join([f'{letter}] ' + ex[f'answer_{i}'] for i, letter in zip(range(4), letters)])
   return question
 
 @dataclass
@@ -84,10 +86,12 @@ list_conv_ratio_to_apply = [0.0, 0.5]
 
 conditions = []
 conditions.append(Configuration(layers=[], ssm_ratio=0.0, conv_ratio=0.0))
+
 for layers in list_layers_to_apply:
   for ssm_ratio in list_ssm_ratio_to_apply:
     for conv_ratio in list_conv_ratio_to_apply:
       conditions.append(Configuration(layers=layers, ssm_ratio=ssm_ratio, conv_ratio=conv_ratio))
+
 print(f"Compiled {len(conditions)} conditions")
 
 results = []
@@ -95,7 +99,7 @@ for qa_id in tqdm(range(n_examples)):
   # load question and correct answer from dataset
   row = ds.iloc[qa_id]
   question = format_context(row)
-  corect_ans = np.where([row[f'correct_{i}'] for i in range(4)])[0][0]
+  correct_ans = np.where([row[f'correct_{i}'] for i in range(4)])[0][0]
 
   # load the context embedding as Mamba cache
   cache_path = os.path.join(embedding_folder, f"context_{qa_id}.npz")
@@ -131,6 +135,7 @@ for qa_id in tqdm(range(n_examples)):
     # TODO: right now we're always takign the max of the two seqlen_offsets, but we could be more clever
     cache_soup.seqlen_offset = max([cache_context['seqlen_offset'], cache_query.seqlen_offset])
 
+    '''
     # generate the answer with souping
     out = model.generate(
             input_ids=query_input_ids, max_new_tokens=1,
@@ -141,24 +146,33 @@ for qa_id in tqdm(range(n_examples)):
     # extract the answer ordering from the logits
     logit_idxs = {c: tokenizer.encode(c) for c in "1234"}
     choices = sorted([(out.logits[0][0, logit_idxs[char]].detach().item(), char) for char in logit_idxs.keys()])[::-1]
+    '''
 
     outfull = model.generate(
             input_ids=query_input_ids, max_new_tokens=100,
+            #temperature=0.1,
+            do_sample=False,
             cache_params=copy.copy(cache_soup)
     )
     outfull_str = tokenizer.decode(outfull[0])
 
+
+    print(outfull_str)
+    model_ans = outfull_str.strip().split('\n')[-1][0]
+
+    letters = ['A', 'B', 'C', 'D']
     # store the results for this sample
     results.append({
       'sample_id': row['sample_id'],
       'condition': str(condition),
-      'correct_answer': corect_ans,
-      'model_answer': int(choices[0][1]),
-      'correct': corect_ans == int(choices[0][1]),
-      'answer_rankings': choices,
-      'full_answer': outfull_str.split("<|assistant|>")[1].split("<|endoftext|>")[0],
-      'extracted_answer': "" if outfull_str.count("#") < 2 else outfull_str.split("#")[1].split("#")[0],
+      'correct_answer': letters[correct_ans-1],
+      'model_answer': model_ans,
+      'correct': letters[correct_ans-1] == model_ans,
+#      'answer_rankings': choices,
+#      'full_answer': outfull_str.split("<|assistant|>")[1].split("<|endoftext|>")[0],
+#      'extracted_answer': "" if outfull_str.count("#") < 2 else outfull_str.split("#")[-2]
     })
 
     # save the results to a file
     pd.DataFrame(results).to_csv(write_path, index=True, header=True)
+
