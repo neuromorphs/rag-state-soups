@@ -83,11 +83,11 @@ list_ssm_ratio_to_apply = [0.5, 0.7, 0.9]
 list_conv_ratio_to_apply = [0.0, 0.5]
 
 conditions = []
+conditions.append(Configuration(layers=[], ssm_ratio=0.0, conv_ratio=0.0))
 for layers in list_layers_to_apply:
   for ssm_ratio in list_ssm_ratio_to_apply:
     for conv_ratio in list_conv_ratio_to_apply:
       conditions.append(Configuration(layers=layers, ssm_ratio=ssm_ratio, conv_ratio=conv_ratio))
-conditions.append(Configuration(layers=[], ssm_ratio=0.0, conv_ratio=0.0))
 print(f"Compiled {len(conditions)} conditions")
 
 results = []
