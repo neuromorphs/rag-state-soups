@@ -115,7 +115,7 @@ for qa_id in tqdm(range(n_examples)):
         k: soup_fn(
           torch.from_numpy(cache_context['ssm_states'].item()[k]).cuda(),
           cache_query.ssm_states[k],
-          condition.ssm_ratio if (i in condition.layers) else 0.0,  # 0.0 <> no context
+          condition.ssm_ratio if (k in condition.layers) else 0.0,  # 0.0 <> no context
         )
         for k in cache_soup.ssm_states.keys()
     }
@@ -123,7 +123,7 @@ for qa_id in tqdm(range(n_examples)):
         k: soup_fn(
           torch.from_numpy(cache_context['conv_states'].item()[k]).cuda(),
           cache_query.conv_states[k],
-          condition.conv_ratio if (i in condition.layers) else 0.0,  # 0.0 <> no context
+          condition.conv_ratio if (k in condition.layers) else 0.0,  # 0.0 <> no context
         )
         for k in cache_soup.conv_states.keys()
     }
