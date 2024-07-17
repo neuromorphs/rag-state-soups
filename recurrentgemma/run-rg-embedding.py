@@ -8,7 +8,7 @@ import torch
 import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-parser = argparse.ArgumentParser(description="Run Mamba to get dataset embeddings.")
+parser = argparse.ArgumentParser(description="Run RecurrentGemma to get dataset embeddings.")
 parser.add_argument("--model-name", type=str, required=True)
 parser.add_argument("--dataset-path", type=str, required=True)
 parser.add_argument("--dataset-name", type=str, required=False)
