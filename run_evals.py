@@ -36,7 +36,7 @@ def soup_fn(context, query, context_lambda=0.9, query_lambda=None):
   return context * context_lambda + query * query_lambda
 
 def format_context(ex):
-  question = f"Answer the following multiple-choice question with a single number: {ex['question']}\n" + '\n'.join([f'{i}:' + ex[f'answer_{i}'] for i in range(4)])
+  question = f"Answer the following multiple-choice question with a single number: {ex['question']}\n" + '\n'.join([f'{i+1}:' + ex[f'answer_{i}'] for i in range(4)])
   return question
 
 @dataclass
@@ -139,7 +139,7 @@ for qa_id in tqdm(range(n_examples)):
     )
 
     # extract the answer ordering from the logits
-    logit_idxs = {c: tokenizer.encode(c) for c in "0123"}
+    logit_idxs = {c: tokenizer.encode(c) for c in "1234"}
     choices = sorted([(out.logits[0][0, logit_idxs[char]].detach().item(), char) for char in logit_idxs.keys()])[::-1]
 
     # store the results for this sample
