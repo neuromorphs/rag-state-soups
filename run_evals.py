@@ -36,7 +36,7 @@ def soup_fn(context, query, context_lambda=0.9, query_lambda=None):
   return context * context_lambda + query * query_lambda
 
 def format_context(ex):
-  question = f"Answer the following multiple-choice question with a single number: {ex['question']}\n" + '\n'.join([f'{i+1}:' + ex[f'answer_{i}'] for i in range(4)])
+  question = f"Answer the following multiple-choice question with ONLY the number (enclosed in #) of the correct item, so #1#, #2#, #3#, or #4# ONLY. Do NOT repeat the question or the answer, provide only the number of the correct answer and nothing else. Provide the correct number enclosed in ## for the answer to this question: {ex['question']}\n" + '\n'.join([f'{i+1}:' + ex[f'answer_{i}'] for i in range(4)])
   return question
 
 @dataclass
@@ -146,6 +146,7 @@ for qa_id in tqdm(range(n_examples)):
             input_ids=query_input_ids, max_new_tokens=100,
             cache_params=copy.copy(cache_soup)
     )
+    outfull_str = tokenizer.decode(outfull[0])
 
     # store the results for this sample
     results.append({
@@ -155,7 +156,8 @@ for qa_id in tqdm(range(n_examples)):
       'model_answer': int(choices[0][1]),
       'correct': corect_ans == int(choices[0][1]),
       'answer_rankings': choices,
-      'full_answer': tokenizer.decode(outfull[0]).split("<|assistant|>")[1].split("<|endoftext|>")[0],
+      'full_answer': outfull_str.split("<|assistant|>")[1].split("<|endoftext|>")[0],
+      'extracted_answer': "" if outfull_str.count("#") < 2 else outfull_str.split("#")[1].split("#")[0],
     })
 
     # save the results to a file
