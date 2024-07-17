@@ -142,6 +142,11 @@ for qa_id in tqdm(range(n_examples)):
     logit_idxs = {c: tokenizer.encode(c) for c in "1234"}
     choices = sorted([(out.logits[0][0, logit_idxs[char]].detach().item(), char) for char in logit_idxs.keys()])[::-1]
 
+    outfull = model.generate(
+            input_ids=query_input_ids, max_new_tokens=100,
+            cache_params=copy.copy(cache_soup)
+    )
+
     # store the results for this sample
     results.append({
       'sample_id': row['sample_id'],
@@ -149,7 +154,8 @@ for qa_id in tqdm(range(n_examples)):
       'correct_answer': corect_ans,
       'model_answer': int(choices[0][1]),
       'correct': corect_ans == int(choices[0][1]),
-      'answer_rankings': choices
+      'answer_rankings': choices,
+      'full_answer': tokenizer.decode(outfull[0]),
     })
 
     # save the results to a file
