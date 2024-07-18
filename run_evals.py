@@ -101,96 +101,101 @@ logging.info(f"Compiled {len(conditions)} conditions")
 
 results = []
 for qa_id in tqdm(range(n_examples)):
-  # load question and correct answer from dataset
-  row = ds.iloc[qa_id]
-  question = format_context(row)
-  correct_ans = np.where([row[f'correct_{i}'] for i in range(4)])[0][0]
+  try:
+    # load question and correct answer from dataset
+    row = ds.iloc[qa_id]
+    question = format_context(row)
+    correct_ans = np.where([row[f'correct_{i}'] for i in range(4)])[0][0]
 
-  # load the context embedding as Mamba cache
-  cache_path = os.path.join(embedding_folder, f"context_{qa_id}.npz")
-  cache_context = np.load(cache_path, allow_pickle=True)
+    # load the context embedding as Mamba cache
+    cache_path = os.path.join(embedding_folder, f"context_{qa_id}.npz")
+    cache_context = np.load(cache_path, allow_pickle=True)
 
-  # create the prompt for the question
-  if "state-spaces/mamba-2.8b-hf" in model_name_or_path:
-    query_input_ids = tokenizer(question, return_tensors="pt", add_generation_prompt=False).to(device)
-  else:
-    prompt = [{"role": "user", "content": question}]
-    query_input_ids = tokenizer.apply_chat_template(prompt, return_tensors="pt", add_generation_prompt=False).to(device)
-  
-  # create an empty query to start the generation from
-  input_ids_empty = tokenizer("<|assistant|>", return_tensors="pt")["input_ids"].to(device)
-
-  # forward pass with query to collect hidden state
-  query_out = model(input_ids=query_input_ids, max_new_tokens=1, return_dict=True)
-  cache_query = query_out.cache_params
-
-  # analyze mean abs value of SSM states
-  avg_abs_val_query_ssm = [
-    torch.abs(cache_query.ssm_states[k]).mean().item()
-    for k in cache_query.ssm_states.keys()
-  ]
-  avg_abs_val_query_ssm = sum(avg_abs_val_query_ssm) / len(avg_abs_val_query_ssm)
-  avg_abs_val_context_ssm = [
-    torch.abs(torch.from_numpy(cache_context['ssm_states'].item()[k])).mean().item()
-    for k in cache_context['ssm_states'].item().keys()
-  ]
-  avg_abs_val_context_ssm = sum(avg_abs_val_context_ssm) / len(avg_abs_val_context_ssm)
-  logging.debug(f"[{qa_id}] Mean absolute value of SSM states: query {avg_abs_val_query_ssm:.5f}, context {avg_abs_val_context_ssm:.5f}")
-
-  for condition in tqdm(conditions):
-    logging.info(f"{qa_id} {condition}")
-
-    # apply the souping
-    cache_soup = copy.copy(cache_query)
-    cache_soup.ssm_states = {
-        k: soup_fn(
-          torch.from_numpy(cache_context['ssm_states'].item()[k]).cuda(),
-          cache_query.ssm_states[k],
-          condition.ssm_ratio if (k in condition.layers) else 0.0,  # 0.0 <> no context
-        )
-        for k in cache_soup.ssm_states.keys()
-    }
-    cache_soup.conv_states = {
-        k: soup_fn(
-          torch.from_numpy(cache_context['conv_states'].item()[k]).cuda(),
-          cache_query.conv_states[k],
-          condition.conv_ratio if (k in condition.layers) else 0.0,  # 0.0 <> no context
-        )
-        for k in cache_soup.conv_states.keys()
-    }
-    # TODO: right now we're always takign the max of the two seqlen_offsets, but we could be more clever
-    cache_soup.seqlen_offset = max([cache_context['seqlen_offset'], cache_query.seqlen_offset])
-
-    out_full = model.generate(
-      input_ids=input_ids_empty,
-      max_new_tokens=100,
-      min_length=50,
-      # temperature=0.1,
-      # do_sample=False,
-      cache_params=copy.copy(cache_soup)
-    )
-    out_full_str = tokenizer.decode(out_full[0]).strip()
-
-    logging.debug(out_full_str)
-    # model_ans = out_full_str.strip()[0]
-    matches = re.findall(r'[ABCD]\]', out_full_str)
-    if len(matches) == 1:
-      model_ans = matches[0][0]
+    # create the prompt for the question
+    if "state-spaces/mamba-2.8b-hf" in model_name_or_path:
+      query_input_ids = tokenizer(question, return_tensors="pt", add_generation_prompt=False).to(device)
     else:
-      model_ans = "/"
-    matches = "".join([e[0] for e in matches])
+      prompt = [{"role": "user", "content": question}]
+      query_input_ids = tokenizer.apply_chat_template(prompt, return_tensors="pt", add_generation_prompt=False).to(device)
+    
+    # create an empty query to start the generation from
+    input_ids_empty = tokenizer("<|assistant|>", return_tensors="pt")["input_ids"].to(device)
 
-    letters = ['A', 'B', 'C', 'D']
-    # store the results for this sample
-    results.append({
-      'sample_id': row['sample_id'],
-      'condition': str(condition),
-      'correct_answer': letters[correct_ans-1],
-      'model_answer': model_ans,
-      'correct': letters[correct_ans-1] == model_ans,
-      'matches': matches,
-      'full_answer': out_full_str.replace("\n", " *** "),
-    })
+    # forward pass with query to collect hidden state
+    query_out = model(input_ids=query_input_ids, max_new_tokens=1, return_dict=True)
+    cache_query = query_out.cache_params
 
-    # save the results to a file
-    pd.DataFrame(results).to_csv(write_path, index=True, header=True)
+    # analyze mean abs value of SSM states
+    avg_abs_val_query_ssm = [
+      torch.abs(cache_query.ssm_states[k]).mean().item()
+      for k in cache_query.ssm_states.keys()
+    ]
+    avg_abs_val_query_ssm = sum(avg_abs_val_query_ssm) / len(avg_abs_val_query_ssm)
+    avg_abs_val_context_ssm = [
+      torch.abs(torch.from_numpy(cache_context['ssm_states'].item()[k])).mean().item()
+      for k in cache_context['ssm_states'].item().keys()
+    ]
+    avg_abs_val_context_ssm = sum(avg_abs_val_context_ssm) / len(avg_abs_val_context_ssm)
+    logging.debug(f"[{qa_id}] Mean absolute value of SSM states: query {avg_abs_val_query_ssm:.5f}, context {avg_abs_val_context_ssm:.5f}")
+
+    for condition in tqdm(conditions):
+      logging.info(f"{qa_id} {condition}")
+
+      # apply the souping
+      cache_soup = copy.copy(cache_query)
+      cache_soup.ssm_states = {
+          k: soup_fn(
+            torch.from_numpy(cache_context['ssm_states'].item()[k]).cuda(),
+            cache_query.ssm_states[k],
+            condition.ssm_ratio if (k in condition.layers) else 0.0,  # 0.0 <> no context
+          )
+          for k in cache_soup.ssm_states.keys()
+      }
+      cache_soup.conv_states = {
+          k: soup_fn(
+            torch.from_numpy(cache_context['conv_states'].item()[k]).cuda(),
+            cache_query.conv_states[k],
+            condition.conv_ratio if (k in condition.layers) else 0.0,  # 0.0 <> no context
+          )
+          for k in cache_soup.conv_states.keys()
+      }
+      # TODO: right now we're always takign the max of the two seqlen_offsets, but we could be more clever
+      cache_soup.seqlen_offset = max([cache_context['seqlen_offset'], cache_query.seqlen_offset])
+
+      out_full = model.generate(
+        input_ids=input_ids_empty,
+        max_new_tokens=100,
+        min_length=50,
+        # temperature=0.1,
+        # do_sample=False,
+        cache_params=copy.copy(cache_soup)
+      )
+      out_full_str = tokenizer.decode(out_full[0]).strip()
+
+      logging.debug(out_full_str)
+      # model_ans = out_full_str.strip()[0]
+      matches = re.findall(r'[ABCD]\]', out_full_str)
+      if len(matches) == 1:
+        model_ans = matches[0][0]
+      else:
+        model_ans = "/"
+      matches = "".join([e[0] for e in matches])
+
+      letters = ['A', 'B', 'C', 'D']
+      # store the results for this sample
+      results.append({
+        'sample_id': row['sample_id'],
+        'condition': str(condition),
+        'correct_answer': letters[correct_ans-1],
+        'model_answer': model_ans,
+        'correct': letters[correct_ans-1] == model_ans,
+        'matches': matches,
+        'full_answer': out_full_str.replace("\n", " *** "),
+      })
+
+      # save the results to a file
+      pd.DataFrame(results).to_csv(write_path, index=True, header=True)
+
+  except Exception as _:
+    logging.error(f"Error in sample {qa_id}. Skipping..")
+    continue
