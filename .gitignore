@@ -1,0 +1,6 @@
+venv
+__pycache__
+dataset-rag/*.csv
+ssm-states/*
+model/*
+results/*
