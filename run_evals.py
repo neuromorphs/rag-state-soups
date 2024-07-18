@@ -87,8 +87,8 @@ n_ssm_layers = 64
 list_layers_to_apply = [int(percent*n_ssm_layers) for percent in [0.25, 0.5, 0.75]]
 list_layers_to_apply.append(list(set(list_layers_to_apply)))
 list_layers_to_apply.append(list(range(n_ssm_layers)))
-list_ssm_ratio_to_apply = [0.5, 0.7, 0.9, 1.0]
-list_conv_ratio_to_apply = [0.0, 0.5, 1.0]
+list_ssm_ratio_to_apply = [0.5, 0.7, 0.9]
+list_conv_ratio_to_apply = [0.0, 0.5]
 
 conditions = []
 conditions.append(Configuration(layers=[], ssm_ratio=0.0, conv_ratio=0.0))
@@ -161,24 +161,11 @@ for qa_id in tqdm(range(n_examples)):
     # TODO: right now we're always takign the max of the two seqlen_offsets, but we could be more clever
     cache_soup.seqlen_offset = max([cache_context['seqlen_offset'], cache_query.seqlen_offset])
 
-    '''
-    # generate the answer with souping
-    out = model.generate(
-            input_ids=query_input_ids, max_new_tokens=1,
-            return_dict_in_generate=True,
-            output_logits=True, cache_params=copy.copy(cache_soup)
-    )
-
-    # extract the answer ordering from the logits
-    logit_idxs = {c: tokenizer.encode(c) for c in "1234"}
-    choices = sorted([(out.logits[0][0, logit_idxs[char]].detach().item(), char) for char in logit_idxs.keys()])[::-1]
-    '''
-
     out_full = model.generate(
       input_ids=input_ids_empty,
       max_new_tokens=100,
       min_length=50,
-      #temperature=0.1,
+      # temperature=0.1,
       # do_sample=False,
       cache_params=copy.copy(cache_soup)
     )
@@ -203,9 +190,6 @@ for qa_id in tqdm(range(n_examples)):
       'correct': letters[correct_ans-1] == model_ans,
       'matches': matches,
       'full_answer': out_full_str.replace("\n", " *** "),
-    #  'answer_rankings': choices,
-    #  'full_answer': outfull_str.split("<|assistant|>")[1].split("<|endoftext|>")[0],
-    #  'extracted_answer': "" if outfull_str.count("#") < 2 else outfull_str.split("#")[-2]
     })
 
     # save the results to a file
